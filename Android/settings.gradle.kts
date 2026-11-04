@@ -10,10 +10,6 @@ pluginManagement {
         mavenCentral()
         gradlePluginPortal()
     }
-    plugins {
-        // Only downloaded when the app module is built (it needs the Android SDK anyway).
-        id("com.android.application") version "8.7.3"
-    }
 }
 
 dependencyResolutionManagement {
