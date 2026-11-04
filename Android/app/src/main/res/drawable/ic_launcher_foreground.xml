@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- A little blueberry with googly eyes. 108dp adaptive icon, art inside the 72dp safe zone. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:aapt="http://schemas.android.com/aapt"
+    android:width="108dp" android:height="108dp"
+    android:viewportWidth="108" android:viewportHeight="108">
+    <path android:pathData="M54,26 C73,26 84,40 84,56 C84,72 72,84 54,84 C36,84 24,72 24,56 C24,40 35,26 54,26 Z">
+        <aapt:attr name="android:fillColor">
+            <gradient android:type="linear" android:startX="36" android:startY="28" android:endX="72" android:endY="84">
+                <item android:offset="0" android:color="#FFA9BCFF" />
+                <item android:offset="0.34" android:color="#FF6C86F5" />
+                <item android:offset="0.68" android:color="#FF4254D6" />
+                <item android:offset="1" android:color="#FF2B2F8F" />
+            </gradient>
+        </aapt:attr>
+    </path>
+    <path android:fillColor="#FF1C1F66" android:pathData="M54,22 L57,28 L64,26 L59,31 L62,36 L54,33 L46,36 L49,31 L44,26 L51,28 Z" />
+    <path android:fillColor="#FFFFFFFF" android:pathData="M44,52 m-9,0 a9,9 0 1,0 18,0 a9,9 0 1,0 -18,0" />
+    <path android:fillColor="#FFFFFFFF" android:pathData="M64,52 m-9,0 a9,9 0 1,0 18,0 a9,9 0 1,0 -18,0" />
+    <path android:fillColor="#FF17151F" android:pathData="M46,54 m-4.5,0 a4.5,4.5 0 1,0 9,0 a4.5,4.5 0 1,0 -9,0" />
+    <path android:fillColor="#FF17151F" android:pathData="M66,54 m-4.5,0 a4.5,4.5 0 1,0 9,0 a4.5,4.5 0 1,0 -9,0" />
+    <path android:fillColor="#FF1C1F66" android:pathData="M54,67 m-4,0 a4,3 0 1,0 8,0 a4,3 0 1,0 -8,0" />
+</vector>
