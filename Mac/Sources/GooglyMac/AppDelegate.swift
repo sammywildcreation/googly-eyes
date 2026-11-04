@@ -18,13 +18,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         Fonts.registerBundled()
         statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
         statusItem.button?.image = MenuIcon.make()
-        statusItem.button?.toolTip = "Bluey"
+        statusItem.button?.toolTip = settings.name
         let menu = NSMenu()
         menu.delegate = self
         statusItem.menu = menu
 
         overlay.onFace = { [weak self] face in self?.server.send(face) }
+        overlay.hidden = settings.silentMode
         overlay.start()
+        lastPrefs = settings.prefs
+        settings.onPrefsChange = { [weak self] in self?.prefsChanged() }
         showDemoBubbleIfAsked()
         checkPermissions()
         if let path = ProcessInfo.processInfo.environment["GOOGLY_DEMO_TRANSCRIBE"], let audio = FileManager.default.contents(atPath: path) {
@@ -57,11 +60,24 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         }
         server.onPhonesChanged = { [weak self] names in
             self?.refreshIcon()
+            self?.broadcastPrefs()
             if names.isEmpty { self?.focus.disconnected() }
             if names.isEmpty, self?.host.awake == true { self?.host.setAwake(false) }
         }
         server.onRequest = { [weak self] packet, reply in
             guard let self else { return }
+            if packet.command == "setPrefs" || packet.command == "getPrefs" {
+                if packet.command == "setPrefs",
+                   let json = packet.text.flatMap({ try? JSONSerialization.jsonObject(with: Data($0.utf8)) as? [String: Any] }) {
+                    self.settings.applyPrefs(json: json)
+                }
+                reply(Packet(command: "prefs", callID: packet.callID, text: self.prefsJSON))
+                return
+            }
+            if packet.command == "focusStart", !self.settings.focusEnabled {
+                reply(Packet(command: "focusReply", callID: packet.callID, text: "Focus mode is switched off. Turn it on in Settings first."))
+                return
+            }
             if packet.command?.hasPrefix("focus") == true {
                 self.focus.heartbeat()
                 let args = packet.text.flatMap { try? JSONSerialization.jsonObject(with: Data($0.utf8)) as? [String: Any] } ?? [:]
@@ -148,6 +164,58 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
     private func refreshIcon() {
         statusItem.button?.appearsDisabled = server.phoneNames.isEmpty
+    }
+
+    // MARK: Name, color, silent mode, focus mode (shared with the phone)
+
+    private var lastPrefs = CompanionPrefs()
+
+    private var prefsJSON: String {
+        (try? JSONEncoder().encode(settings.prefs)).flatMap { String(data: $0, encoding: .utf8) } ?? "{}"
+    }
+
+    private func broadcastPrefs() {
+        server.broadcast(Packet(command: "prefs", text: prefsJSON))
+    }
+
+    /// Applies a change from the menu or the phone, and tells every phone about it.
+    private func prefsChanged() {
+        let prefs = settings.prefs
+        let previous = lastPrefs
+        lastPrefs = prefs
+        overlay.hidden = prefs.silent
+        overlay.view.applyTheme()
+        statusItem.button?.image = MenuIcon.make()
+        statusItem.button?.toolTip = prefs.name
+        host.prefsChanged()
+        if !prefs.focusEnabled, let session = focus.current, session.status == .running { focus.pause("Focus mode turned off") }
+        broadcastPrefs()
+        // His tools and instructions depend on these, so a live session restarts with the new ones.
+        if prefs.silent != previous.silent || prefs.focusEnabled != previous.focusEnabled || prefs.name != previous.name {
+            restartIfAwake()
+        }
+    }
+
+    @objc private func toggleSilent() { settings.silentMode.toggle() }
+    @objc private func toggleFocusEnabled() { settings.focusEnabled.toggle() }
+
+    @objc private func setColor(_ item: NSMenuItem) {
+        settings.hue = (item.representedObject as? NSNumber)?.doubleValue
+    }
+
+    @objc private func editName() {
+        NSApp.activate(ignoringOtherApps: true)
+        let alert = NSAlert()
+        alert.messageText = "His Name"
+        alert.informativeText = "What should he be called? It shows on the phone and he'll answer to it."
+        let field = NSTextField(frame: NSRect(x: 0, y: 0, width: 260, height: 24))
+        field.stringValue = settings.name
+        alert.accessoryView = field
+        alert.addButton(withTitle: "Save")
+        alert.addButton(withTitle: "Cancel")
+        alert.window.initialFirstResponder = field
+        guard alert.runModal() == .alertFirstButtonReturn else { return }
+        settings.name = field.stringValue
     }
 
     // MARK: Actions
@@ -319,16 +387,26 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
                                 action: nil, keyEquivalent: "")
         status.isEnabled = false
         menu.addItem(status)
-        menu.addItem(item("Pair iPhone (QR)…", #selector(pairPhone)))
-        if let session = focus.current, session.status != .ended {
+        menu.addItem(item("Pair Phone (QR)…", #selector(pairPhone)))
+        menu.addItem(.separator())
+
+        let silent = item("Silent Mode (answers only on the phone)", #selector(toggleSilent))
+        silent.state = settings.silentMode ? .on : .off
+        menu.addItem(silent)
+        let focusToggle = item("Focus Mode", #selector(toggleFocusEnabled))
+        focusToggle.state = settings.focusEnabled ? .on : .off
+        menu.addItem(focusToggle)
+        if settings.focusEnabled, let session = focus.current, session.status != .ended {
             let title = NSMenuItem(title: "Focus: \(session.task) · \(FocusSession.clock(session.remaining))", action: nil, keyEquivalent: "")
             title.isEnabled = false; menu.addItem(title)
             menu.addItem(item(session.status == .running ? "Pause Focus" : "Resume Focus", session.status == .running ? #selector(pauseFocus) : #selector(resumeFocus)))
             menu.addItem(item("End Focus", #selector(endFocus)))
         }
-        let developer = item("Developer Mode (4× · checks every 10s)", #selector(toggleFocusDeveloperMode))
-        developer.state = focus.developerMode ? .on : .off
-        menu.addItem(developer)
+        if settings.focusEnabled {
+            let developer = item("Developer Mode (4× · checks every 10s)", #selector(toggleFocusDeveloperMode))
+            developer.state = focus.developerMode ? .on : .off
+            menu.addItem(developer)
+        }
         let wake = NSMenuItem(title: host.awake ? "Go to Sleep (Follow Mode)" : "Wake Up and Talk",
                               action: #selector(toggleAwake), keyEquivalent: " ")
         wake.keyEquivalentModifierMask = [.option]
@@ -395,6 +473,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             menu.addItem(submenu(codex.approvals.isEmpty ? "Codex" : "Codex (waiting for you)", codexMenu))
         }
         menu.addItem(item("Open Meeting Notes", #selector(openNotes)))
+        menu.addItem(item("Name: \(settings.name)…", #selector(editName)))
+        let colorMenu = NSMenu()
+        for preset in Palette.presets {
+            let c = item(preset.name, #selector(setColor(_:)))
+            c.representedObject = preset.hue.map { NSNumber(value: $0) }
+            c.state = settings.hue == preset.hue ? .on : .off
+            colorMenu.addItem(c)
+        }
+        menu.addItem(submenu("Color: \(Palette.presetName(for: settings.hue))", colorMenu))
         menu.addItem(item("Personality…", #selector(editPersonality)))
         menu.addItem(item("OpenAI Key…", #selector(editKeys)))
         menu.addItem(.separator())
@@ -413,7 +500,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         menu.addItem(show)
 
         menu.addItem(.separator())
-        menu.addItem(NSMenuItem(title: "Quit Bluey", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q"))
+        menu.addItem(NSMenuItem(title: "Quit \(settings.name)", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q"))
     }
 
     /// Menu item that shows its global shortcut (⌃⌥ + key) when given one.

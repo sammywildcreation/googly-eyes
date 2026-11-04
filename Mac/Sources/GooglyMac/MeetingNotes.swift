@@ -42,7 +42,7 @@ enum MeetingNotes {
         let text = """
         # Bluey Notes
 
-        Meeting notes recorded by Riley's Bluey app (the blueberry on the iPhone). One folder per listening \
+        Meeting notes recorded by the companion app (on your phone). One folder per listening \
         session, named by start time.
 
         In each session folder:

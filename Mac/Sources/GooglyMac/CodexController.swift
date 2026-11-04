@@ -491,7 +491,7 @@ enum CodexProjects {
             try fm.createDirectory(at: folder, withIntermediateDirectories: true)
             let readme = folder.appendingPathComponent("README.md")
             if !fm.fileExists(atPath: readme.path) {
-                try "# Bluey\n\nCodex jobs started by Bluey, the blueberry on Riley's iPhone, run from here.\n"
+                try "# Bluey\n\nCodex jobs started by Bluey, your desktop companion, run from here.\n"
                     .write(to: readme, atomically: true, encoding: .utf8)
             }
             let git = Process()

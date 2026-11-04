@@ -516,7 +516,7 @@ final class CursorView: NSView {
         // A clean white cloud with a faint blueberry tint at the bottom and a berry outline. No glow.
         speech.fillColor = NSColor.white.cgColor
         speech.opacity = 0
-        speechFill.colors = [NSColor.white.cgColor, NSColor(hex: 0xEEF0FF).cgColor]
+        speechFill.colors = [NSColor.white.cgColor, NSColor(hex: Palette.tint).cgColor]
         speechFill.startPoint = CGPoint(x: 0.5, y: 1)
         speechFill.endPoint = CGPoint(x: 0.5, y: 0)
         speechFill.mask = speechFillMask
@@ -533,6 +533,16 @@ final class CursorView: NSView {
     }
 
     required init?(coder: NSCoder) { fatalError("init(coder:) is not used") }
+
+    /// Re-applies his colors after the user picks a new one.
+    func applyTheme() {
+        stringLayer.strokeColor = NSColor(hex: Palette.berry1, alpha: 0.7).cgColor
+        trailLayer.fillColor = NSColor(hex: Palette.berry2, alpha: 1).cgColor
+        speechFill.colors = [NSColor.white.cgColor, NSColor(hex: Palette.tint).cgColor]
+        speechBorder.strokeColor = NSColor(hex: Palette.berry2, alpha: 1).cgColor
+        builtArt = nil  // redraws the body gradient on the next frame
+        layoutCaption()
+    }
 
     override func setFrameSize(_ newSize: NSSize) {
         super.setFrameSize(newSize)
@@ -1043,6 +1053,12 @@ final class CursorOverlay: NSObject {
 
     func goHome() { mode = idleMode }
 
+    /// Silent mode: the overlay stays up (so his eyes on the phone keep following your mouse and his
+    /// actions keep their timing) but nothing on it can be seen.
+    var hidden = false {
+        didSet { window?.alphaValue = hidden ? 0 : 1 }
+    }
+
     func start() {
         mode = idleMode
         makeWindow()
@@ -1074,6 +1090,7 @@ final class CursorOverlay: NSObject {
         window.level = .screenSaver
         window.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary, .stationary, .ignoresCycle]
         window.contentView = view
+        window.alphaValue = hidden ? 0 : 1
         window.orderFrontRegardless()
         self.window = window
     }
